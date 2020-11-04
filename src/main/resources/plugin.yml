@@ -40,3 +40,9 @@ permissions:
   bentobox.version:
     description: Allows to use /bentobox version
     default: op
+  islandhopper.give:
+    description: Allows to use /islandhopper
+    default: op
+
+commands:
+  islandhopper:

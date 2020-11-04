@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -28,6 +29,7 @@ import com.google.common.collect.ImmutableSet.Builder;
 import com.google.gson.annotations.Expose;
 
 import world.bentobox.bentobox.BentoBox;
+import world.bentobox.bentobox.IslandHoppers.IslandHopper;
 import world.bentobox.bentobox.api.commands.CompositeCommand;
 import world.bentobox.bentobox.api.configuration.WorldSettings;
 import world.bentobox.bentobox.api.events.island.IslandEvent;
@@ -55,6 +57,9 @@ import world.bentobox.bentobox.util.Util;
  */
 @Table(name = "Islands")
 public class Island implements DataObject {
+
+    // List of all Island Hoppers
+    private List<IslandHopper> hoppers = Lists.newArrayList();
 
     // True if this island is deleted and pending deletion from the database
     @Expose
@@ -229,6 +234,20 @@ public class Island implements DataObject {
      */
     public void addMember(@NonNull UUID playerUUID) {
         setRank(playerUUID, RanksManager.MEMBER_RANK);
+    }
+
+    /**
+     * @return the list of Island Hoppers.
+     */
+    public List<IslandHopper> getHoppers() {
+        return this.hoppers;
+    }
+
+    /**
+     * @param hopper gets added to the hopper list.
+     */
+    public void addIslandHopper(IslandHopper hopper) {
+        this.hoppers.add(hopper);
     }
 
     /**

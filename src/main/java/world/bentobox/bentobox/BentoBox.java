@@ -1,11 +1,19 @@
 package world.bentobox.bentobox;
 
+import java.io.*;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -13,6 +21,9 @@ import org.bukkit.scheduler.BukkitTask;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 
+import world.bentobox.bentobox.IslandHoppers.HopperCMD;
+import world.bentobox.bentobox.IslandHoppers.HopperListener;
+import world.bentobox.bentobox.IslandHoppers.IslandHopper;
 import world.bentobox.bentobox.api.configuration.Config;
 import world.bentobox.bentobox.api.events.BentoBoxReadyEvent;
 import world.bentobox.bentobox.api.localization.TextVariables;
@@ -20,6 +31,7 @@ import world.bentobox.bentobox.api.user.Notifier;
 import world.bentobox.bentobox.api.user.User;
 import world.bentobox.bentobox.commands.BentoBoxCommand;
 import world.bentobox.bentobox.database.DatabaseSetup;
+import world.bentobox.bentobox.database.objects.Island;
 import world.bentobox.bentobox.hooks.DynmapHook;
 import world.bentobox.bentobox.hooks.MultiverseCoreHook;
 import world.bentobox.bentobox.hooks.VaultHook;
@@ -92,6 +104,10 @@ public class BentoBox extends JavaPlugin {
     private BukkitTask blueprintLoadingTask;
 
     private boolean shutdown;
+
+
+    public File dataFile;
+    public FileConfiguration data;
 
     @Override
     public void onEnable(){
@@ -277,6 +293,10 @@ public class BentoBox extends JavaPlugin {
         // Island Delete Manager
         islandDeletionManager = new IslandDeletionManager(this);
         manager.registerEvents(islandDeletionManager, this);
+        // Island Hopper Stuff
+        manager.registerEvents(new HopperListener(this), this);
+        getCommand("islandhopper").setExecutor(new HopperCMD());
+
     }
 
     @Override
@@ -293,6 +313,31 @@ public class BentoBox extends JavaPlugin {
         }
         if (islandsManager != null) {
             islandsManager.shutdown();
+        }
+        saveData();
+    }
+
+    public void saveData(){
+        for(Island is : getIslands().getIslandCache().getIslands()){
+            if(!is.getHoppers().isEmpty()){
+                data.set(is.getUniqueId() + ".Hoppers", null);
+                for(IslandHopper hop : is.getHoppers()){
+                    data.set(is.getUniqueId() + ".Hoppers." + hop.getID() + ".Location.World", hop.getLocation().getWorld().getName());
+                    data.set(is.getUniqueId() + ".Hoppers." + hop.getID() + ".Location.X", hop.getLocation().getBlockX());
+                    data.set(is.getUniqueId() + ".Hoppers." + hop.getID() + ".Location.Y", hop.getLocation().getBlockY());
+                    data.set(is.getUniqueId() + ".Hoppers." + hop.getID() + ".Location.Z", hop.getLocation().getBlockZ());
+                    List<String> mats = Lists.newArrayList();
+                    for(Material mat : hop.getFilter()){
+                        mats.add(mat.toString());
+                    }
+                    data.set(is.getUniqueId() + ".Hoppers." + hop.getID() + ".Filter", mats);
+                }
+            }
+        }
+        try {
+            data.save(dataFile);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -386,7 +431,43 @@ public class BentoBox extends JavaPlugin {
             getPluginLoader().disablePlugin(this);
             return false;
         }
+        loadFiles();
+        loadHoppers();
         return true;
+    }
+
+    public void loadFiles(){
+        this.dataFile = new File(this.getDataFolder().toString() + File.separatorChar + "islanddata.yml");
+        if (!dataFile.exists()) {
+            this.saveResource("islanddata.yml", false);
+        }
+        try {
+            this.data = YamlConfiguration.loadConfiguration(new InputStreamReader(new FileInputStream(dataFile), Charsets.UTF_8));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadHoppers(){
+        for(Island is : getIslands().getIslandCache().getIslands()){
+            if(data.contains(is.getUniqueId())){
+                if(data.contains(is.getUniqueId() + ".Hoppers")){
+                    for(String i : data.getConfigurationSection(is.getOwner().toString() + ".Hoppers").getKeys(false)){
+                        Location loc = new Location(Bukkit.getWorld(data.getString(is.getOwner().toString() + ".Hoppers." + i + ".Location.World")),
+                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.X"),
+                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.Y"),
+                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.Z"));
+                        List<Material> mats = Lists.newArrayList();
+                        for(String mat : data.getStringList(is.getOwner().toString() + ".Hoppers." + i + ".Filter")){
+                            mats.add(Material.valueOf(mat));
+                        }
+                        IslandHopper hopper = new IslandHopper(UUID.fromString(i), loc);
+                        hopper.setFilter(mats);
+                        is.getHoppers().add(hopper);
+                    }
+                }
+            }
+        }
     }
 
     @Override
