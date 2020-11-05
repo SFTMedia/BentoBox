@@ -242,6 +242,7 @@ public class BentoBox extends JavaPlugin {
             webManager = new WebManager(this);
 
             final long enableTime = System.currentTimeMillis() - enableStart;
+            loadHoppers();
 
             // Show banner
             User.getInstance(Bukkit.getConsoleSender()).sendMessage("successfully-loaded",
@@ -303,6 +304,7 @@ public class BentoBox extends JavaPlugin {
     public void onDisable() {
         // Stop all async database tasks
         shutdown = true;
+        saveData();
 
         if (addonsManager != null) {
             addonsManager.disableAddons();
@@ -314,7 +316,6 @@ public class BentoBox extends JavaPlugin {
         if (islandsManager != null) {
             islandsManager.shutdown();
         }
-        saveData();
     }
 
     public void saveData(){
@@ -432,14 +433,13 @@ public class BentoBox extends JavaPlugin {
             return false;
         }
         loadFiles();
-        loadHoppers();
         return true;
     }
 
     public void loadFiles(){
-        this.dataFile = new File(this.getDataFolder().toString() + File.separatorChar + "islanddata.yml");
+        this.dataFile = new File(this.getDataFolder().toString() + File.separatorChar + "hoppers.yml");
         if (!dataFile.exists()) {
-            this.saveResource("islanddata.yml", false);
+            this.saveResource("hoppers.yml", false);
         }
         try {
             this.data = YamlConfiguration.loadConfiguration(new InputStreamReader(new FileInputStream(dataFile), Charsets.UTF_8));
@@ -449,25 +449,26 @@ public class BentoBox extends JavaPlugin {
     }
 
     public void loadHoppers(){
+        int total = 0;
         for(Island is : getIslands().getIslandCache().getIslands()){
             if(data.contains(is.getUniqueId())){
-                if(data.contains(is.getUniqueId() + ".Hoppers")){
-                    for(String i : data.getConfigurationSection(is.getOwner().toString() + ".Hoppers").getKeys(false)){
-                        Location loc = new Location(Bukkit.getWorld(data.getString(is.getOwner().toString() + ".Hoppers." + i + ".Location.World")),
-                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.X"),
-                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.Y"),
-                                data.getInt(is.getOwner().toString() + ".Hoppers." + i + ".Location.Z"));
-                        List<Material> mats = Lists.newArrayList();
-                        for(String mat : data.getStringList(is.getOwner().toString() + ".Hoppers." + i + ".Filter")){
-                            mats.add(Material.valueOf(mat));
-                        }
-                        IslandHopper hopper = new IslandHopper(UUID.fromString(i), loc);
-                        hopper.setFilter(mats);
-                        is.getHoppers().add(hopper);
+                for(String i : data.getConfigurationSection(is.getUniqueId() + ".Hoppers").getKeys(false)){
+                    Location loc = new Location(Bukkit.getWorld(data.getString(is.getUniqueId() + ".Hoppers." + i + ".Location.World")),
+                            data.getInt(is.getUniqueId() + ".Hoppers." + i + ".Location.X"),
+                            data.getInt(is.getUniqueId() + ".Hoppers." + i + ".Location.Y"),
+                            data.getInt(is.getUniqueId() + ".Hoppers." + i + ".Location.Z"));
+                    List<Material> mats = Lists.newArrayList();
+                    for(String mat : data.getStringList(is.getUniqueId() + ".Hoppers." + i + ".Filter")){
+                        mats.add(Material.valueOf(mat));
                     }
+                    IslandHopper hopper = new IslandHopper(UUID.fromString(i), loc);
+                    hopper.setFilter(mats);
+                    is.getHoppers().add(hopper);
+                    total++;
                 }
             }
         }
+        log("Loaded " + total + " Island Hoppers");
     }
 
     @Override

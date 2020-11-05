@@ -22,6 +22,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.util.Vector;
 import world.bentobox.bentobox.BentoBox;
 import world.bentobox.bentobox.database.objects.Island;
 import world.bentobox.bentobox.managers.RanksManager;
@@ -75,16 +76,17 @@ public class HopperListener implements Listener {
                 if(pl.getIslands().getIslandCache().getIslandAt(e.getBlock().getLocation().clone()) != null) {
                     Island is = pl.getIslands().getIslandCache().getIslandAt(e.getBlock().getLocation().clone());
                     if (is.getRank(e.getPlayer().getUniqueId()) >= RanksManager.MEMBER_RANK) {
+                        e.setCancelled(true);
+                        e.getBlock().setType(Material.AIR);
+                        e.getPlayer().getInventory().addItem(getIslandHopper(1));
                         for (IslandHopper hop : is.getHoppers()) {
                             if (hop.getLocation().distance(e.getBlock().getLocation()) < 1) {
-                                e.setCancelled(true);
-                                e.getBlock().setType(Material.AIR);
-                                e.getPlayer().getInventory().addItem(getIslandHopper(1));
                                 is.getHoppers().remove(hop);
-                                e.getPlayer().sendMessage("§cRemoved Island Hopper and filter settings");
                                 return;
                             }
                         }
+                        e.getPlayer().sendMessage("§cRemoved Island Hopper and filter settings");
+                        return;
                     }
                     e.setCancelled(true);
                     e.getPlayer().sendMessage("§cYou can't break that");
@@ -99,7 +101,7 @@ public class HopperListener implements Listener {
         if(e.getBlock().getType().equals(Material.HOPPER)){
             if(e.getItemInHand().hasItemMeta()){
                 if(e.getItemInHand().getItemMeta().hasDisplayName()){
-                    if(e.getItemInHand().getItemMeta().getDisplayName().equals("§9Island Hopper")){
+                    if(e.getItemInHand().getItemMeta().getDisplayName().equals(hopperName)){
                         if(pl.getIslands().getIslandCache().getIslandAt(e.getBlock().getLocation().clone()) != null) {
                             Island is = pl.getIslands().getIslandCache().getIslandAt(e.getBlock().getLocation().clone());
                             if (is.getRank(e.getPlayer().getUniqueId()) >= RanksManager.MEMBER_RANK) {
@@ -125,7 +127,7 @@ public class HopperListener implements Listener {
             if(e.getClickedBlock().getType().equals(Material.HOPPER)){
                 Hopper hopper = (Hopper) e.getClickedBlock().getState();
                 if(hopper.getCustomName() == null)return;
-                if(hopper.getCustomName().equals("§9Island Hopper")){
+                if(hopper.getCustomName().equals(hopperName)){
                     e.setCancelled(true);
                     Island is = pl.getIslands().getIslandCache().getIslandAt(e.getClickedBlock().getLocation().clone());
                     if (is.getRank(e.getPlayer().getUniqueId()) >= RanksManager.MEMBER_RANK) {
@@ -186,7 +188,7 @@ public class HopperListener implements Listener {
     public void filterClose(InventoryCloseEvent e){
         if(e.getInventory() == null)return;
         if(e.getView().getTitle() == null)return;
-        if(e.getView().getTitle().equals("§9Island Hopper Filter")){
+        if(e.getView().getTitle().equals(hopperName + " §9Filter")){
             net.minecraft.server.v1_16_R2.ItemStack stack = CraftItemStack.asNMSCopy(e.getInventory().getItem(22));
             NBTTagCompound tag = stack.getTag();
             for(IslandHopper hopper : pl.getIslands().getIslandCache().getIslandById(tag.getString("UUID")).getHoppers()){
@@ -203,18 +205,17 @@ public class HopperListener implements Listener {
         if(e.getView().getTitle() == null)return;
         if(e.getView().getTitle().equals(hopperName + " §9Filter")){
             e.setCancelled(true);
-            net.minecraft.server.v1_16_R2.ItemStack stack = CraftItemStack.asNMSCopy(e.getClickedInventory().getItem(22));
-            NBTTagCompound tag = stack.getTag();
-            Island is = pl.getIslands().getIslandCache().getIslandById(tag.getString("UUID"));
             if(e.getRawSlot() < e.getView().getTopInventory().getSize()){
                 //top Inv
                 String name = "";
                 Material type = e.getCurrentItem().getType();
+                if(type.equals(Material.BLACK_STAINED_GLASS_PANE))return;
                 for(String part : type.toString().split("_"))name += ((part.substring(0, 1).toUpperCase() + part.substring(1).toLowerCase()) + " ");
                 e.getClickedInventory().setItem(e.getSlot(), new ItemStack(Material.AIR));
                 e.getWhoClicked().sendMessage("§aRemoved §9" + name + "§afrom the filter list");
             }else{
                 //bottom Inv
+                Island is = pl.getIslands().getIslandCache().getIslandAt(e.getWhoClicked().getLocation().clone());
                 for(IslandHopper test : is.getHoppers()){
                     if(test.getFilter().isEmpty())continue;
                     if(test.getFilter().contains(e.getCurrentItem().getType())){
@@ -241,16 +242,17 @@ public class HopperListener implements Listener {
                 Location check = hopper.getLocation().clone().add(0, -1, 0);
                 if(check.getBlock().getState() instanceof Chest){
                     Chest chest = (Chest) check.getBlock().getState();
-                    if(hasRoomForItem(chest.getInventory(), e.getEntity().getItemStack())){
-                        chest.getInventory().addItem(e.getEntity().getItemStack());
-                        chest.update();
+                    if(hasRoomForItem(chest.getBlockInventory(), e.getEntity().getItemStack())){
+                        chest.getBlockInventory().addItem(e.getEntity().getItemStack());
                         e.getEntity().remove();
                     }else{
-                        e.getEntity().teleport(hopper.getLocation().clone().add(0, -1, 0));
+                        e.getEntity().setVelocity(new Vector(0,0,0));
+                        e.getEntity().teleport(hopper.getLocation().clone().add(0.5, -0.5, 0.5));
                     }
                     return;
                 }else{
-                    e.getEntity().teleport(hopper.getLocation().clone().add(0, -1, 0));
+                    e.getEntity().setVelocity(new Vector(0,0,0));
+                    e.getEntity().teleport(hopper.getLocation().clone().add(0.5, -0.5, 0.5));
                     return;
                 }
             }
